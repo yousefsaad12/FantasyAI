@@ -160,19 +160,27 @@ async def predict(player_request: PlayerRequest):
         # Ensure "position" column exists in data
         position = player_data["position"].values[0]
         result = {
-            "playerName": player_name,
-            "predictedPoints": round(float(predicted_points), 2),
-            "percentageChange": round(float(percentage_change), 2),
-            "trend": trend
+        "playerName": player_name,
+        "predictedPoints": round(float(predicted_points), 2),
+        "percentageChange": f"{round(percentage_change, 2)}%",  # Existing percentage
+        "trend": trend
         }
-        
+
         if position != 1:  # Not goalkeeper
+            # Calculate assists/goals as % of games with contributions
+            total_games = 5  # Last 5 games
+            assists_count = player_data["assists"].tail(5).sum()
+            goals_count = player_data["goalsScored"].tail(5).sum()
+            
             result.update({
-                "assistsLast5": int(player_data["assists"].tail(5).sum()),
-                "goalsLast5": int(player_data["goalsScored"].tail(5).sum())
+                # Percentage of games with at least 1 assist
+                "assistsLast5": f"{(assists_count / total_games * 100):.1f}%",
+                # Percentage of games with at least 1 goal
+                "goalsLast5": f"{(goals_count / total_games * 100):.1f}%"
             })
         else:
-            result["cleanSheetsLast5"] = int(player_data["cleanSheets"].tail(5).sum())
+            clean_sheets = player_data["cleanSheets"].tail(5).sum()
+            result["cleanSheetsLast5"] = f"{(clean_sheets / total_games * 100):.1f}%"
             
         return result
     except Exception as e:
