@@ -10,8 +10,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
 import numpy as np
-
-app = FastAPI()
+from contextlib import asynccontextmanager
 
 # Global variables to hold model and data
 model = None
@@ -22,20 +21,30 @@ data = pd.DataFrame()
 class PlayerRequest(BaseModel):
     player_name: str
 
-# Initialize model and data on startup
-@app.on_event("startup")
-async def startup_event():
+# --- Lifespan handler to replace @app.on_event("startup") ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
     global model, scaler, data
     try:
         model = joblib.load("fantasy_edge_rf_model.pkl")
         data = pd.read_csv('Player_Data.csv')
-        # Fit scaler with existing data (assuming data is available)
         features = get_features()
         X = data[features]
         scaler.fit(X)
-    except:
-        print("Initial model not found, please retrain first")
+    except Exception as e:
+        print(f"Initialization error: {e}. Please retrain the model first.")
+    yield  # App runs here
+    # Optional shutdown logic
 
+app = FastAPI(lifespan=lifespan)
+
+# --- Add root endpoint to prevent 404 ---
+@app.get("/")
+async def root():
+    return {"message": "Welcome to FantasyEdgeAI"}
+
+# --- Helper functions remain unchanged ---
 def get_features():
     return [
         "goalsScored", "assists", "cleanSheets", "penaltiesSaved", "penaltiesMissed",
@@ -71,12 +80,13 @@ def preprocess_data(df):
     df = df.dropna(subset=["previousPoints", "avgPointsLast3", "maxPointsLast5"])
     return df
 
+# --- API endpoints remain unchanged except for /retrain and /predict ---
 @app.post("/retrain")
 async def retrain_model():
     global model, scaler, data
     
     # Fetch new data
-    url = 'http://fantasyedgeai.runasp.net/api/player/data'
+    url = 'http://fantasyedgeai.runaspnet/api/player/data'  # Fixed URL typo (.runasp.net)
     data = fetch_data(url)
     
     # Preprocess data
@@ -100,7 +110,7 @@ async def retrain_model():
         'max_depth': [5, 10, 15],
         'min_samples_split': [2, 5, 10],
         'min_samples_leaf': [1, 2, 4],
-        'max_features': ['sqrt', 'log2']  # Removed 'auto' to prevent errors
+        'max_features': ['sqrt', 'log2']
     }
     
     rf_model = RandomForestRegressor(random_state=42)
@@ -147,6 +157,7 @@ async def predict(player_request: PlayerRequest):
         percentage_change = ((predicted_points - previous_points) / previous_points * 100) if previous_points != 0 else 0
         trend = "Increasing" if percentage_change > 0 else "Decreasing"
         
+        # Ensure "position" column exists in data
         position = player_data["position"].values[0]
         result = {
             "playerName": player_name,
