@@ -159,11 +159,14 @@ async def predict(player_request: PlayerRequest):
         
         # Ensure "position" column exists in data
         position = player_data["position"].values[0]
+
         result = {
-        "playerName": player_name,
-        "predictedPoints": round(float(predicted_points), 2),
-        "percentageChange": f"{round(percentage_change, 2)}%",  # Existing percentage
-        "trend": trend
+            "playerName": player_name,
+            "predictedPoints": round(float(predicted_points), 2),  # Predicted Points
+            "percentageChange": f"{round(percentage_change, 2)}%",  # Percentage Change
+            "trend": trend,  # Trend (Increasing/Decreasing)
+            "averageBonusPoints": round(float(player_data["bonus"].tail(5).mean()), 2),  # Average Bonus Points (last 5 games)
+            "pointsPerWeek": round(float(player_data["totalPoints"].tail(5).mean()), 2),  # Points Per Week (last 5 games)
         }
 
         if position != 1:  # Not goalkeeper
@@ -174,9 +177,9 @@ async def predict(player_request: PlayerRequest):
             
             result.update({
                 # Percentage of games with at least 1 assist
-                "assistsLast5": f"{(assists_count / total_games * 100):.1f}%",
+                "assistsPercentage": f"{(assists_count / total_games * 100):.1f}%",
                 # Percentage of games with at least 1 goal
-                "goalsLast5": f"{(goals_count / total_games * 100):.1f}%"
+                "goalsPercentage": f"{(goals_count / total_games * 100):.1f}%"
             })
         else:
             clean_sheets = player_data["cleanSheets"].tail(5).sum()
